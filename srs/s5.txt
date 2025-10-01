@@ -1,0 +1,5 @@
+I have an standalone app which is failing to launch on the Apple OSX platform. The App has been compiled using Matlab 2024b for Windows
+10, Windows 11, Mac Intel (Sequoia), Mac Silicon (Sequoia). The app works perfectly on both Windows platforms and fails to launch on both
+Mac platforms the error report (attached) says that the app launcher is looking for 'libmwsafe_env.dylib' and it does not exist. I have since
+recompiled the App on Matlab 2024a and it works perfectly on all platforms. so this seems to be an issue specific to Matlab 2024b for the OSX
+platform.

@@ -1,0 +1,41 @@
+Description:
+**Error Message:**
+
+```python
+>> CompileModelZ2
+22-Aug-2025 11:04:31 INFO: Getting amodel related files
+22-Aug-2025 11:04:31 INFO: adding amodel.slx into metadata file list
+22-Aug-2025 11:04:31 INFO: Locating those json files
+22-Aug-2025 11:04:31 INFO: copying inputs.json to data folder
+22-Aug-2025 11:04:31 INFO: copying mapping.json to data folder
+22-Aug-2025 11:04:31 INFO: copying outputs.json to data folder
+22-Aug-2025 11:04:31 INFO: copying params.json to data folder
+22-Aug-2025 11:04:31 INFO: copying states.json to data folder
+22-Aug-2025 11:04:31 INFO: Done fetching model related metadata
+### Searching for referenced models in model 'amodel'.
+### Total of 1 models to build.
+Warning: Your deployed application may fail because file or folder paths
+not present in the deployed environment may be included in your MATLAB startup
+file. Use the MATLAB function "isdeployed" in your MATLAB startup file to
+determine the appropriate execution environment when including file and folder
+paths, and recompile your application.
+ 
+> In compiler.internal.build.builder/Generic/build (line 83)
+In compiler.build.productionServerArchive (line 119)
+In CompileModel (line 27)
+In CompileModelZ2 (line 4)
+Error using .internal.build.builder.Generic/build (line 83)
+Failed to build CTF file:
+Details: Error in adding directory part '.matlab' into CTF file. Details: 'File system entry
+already exists: /.matlab'
+
+Error in .build.productionServerArchive (line 119)
+resultsobj = builder.build;
+             ^^^^^^^^^^^^^
+Error in  (line 27)
+    PSB = compiler.build.productionServerArchive(opts);
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error in  (line 4)
+CompileModel(modelName, modelPathName);
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
