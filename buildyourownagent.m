@@ -5,7 +5,13 @@ function buildyourownagent()
     % List files in the specified directory
     function fileList = listSrFiles(args)
         fileList = dir(args.folder);
-        fileList = {fileList(~[fileList.isdir]).name};
+        % Error checking for the dir command
+        if isempty(fileList)
+            fileList = "No files found in the specified directory";
+        elseif ~isfolder(args.folder)
+            fileList = "The specified folder does not exist";
+        end
+        fileList = string({fileList(~[fileList.isdir]).name}).join();
     end
 
     % Create a new empty file
@@ -25,7 +31,7 @@ function buildyourownagent()
 
         try
             fileID = fopen(fullPath, 'r');
-            content = fscanf(fileID, '%c');
+            content = string(fscanf(fileID, '%c'));
             fclose(fileID);
         catch e
             if contains(e.message, 'No such file or directory')
@@ -41,7 +47,7 @@ function buildyourownagent()
         fileID = fopen(args.file_name, 'a');
         fprintf(fileID, '%s\n', args.results);
         fclose(fileID);
-        result = "wrote message to " + args.file_name;
+        result = args.file_name;
     end
 
     % Terminate the agent loop
@@ -72,7 +78,7 @@ function buildyourownagent()
         agentRules = {struct('role', 'system', ...
              'content', ['You are an AI agent that can perform tasks by using available tools.\n\n', ...
              'create a new, blank file named out.txt\n', ...
-             'retreive the list of service request files from the folder buildyourownagent/srs.  read each file.  If the file is not in english, translate it to english.\n', ...
+             'retreive the list of service request files from the folder srs.  read each file.  If the file is not in english, translate it to english.\n', ...
              'for each file, suggest a list of 2-3 tags to categorize the request, an assessment of where it is in the workflow,\n', ...
              'and an issue type.  Then append the list of tags to out.txt in the form of <srfilebane> : <deploment step> : <issue type> : <tag1>, <tag2>...\n', ...
              'where deployment step represents the step in the deployment process the customer experienced the issue.\n', ...
@@ -98,8 +104,8 @@ function buildyourownagent()
         while iterations < maxIterations
             % 1. Construct prompt: Combine agent rules with memory
             disp(jsonencode(memory));
-            %input = [agentRules, memory];
-            input = agentRules;
+            input = [agentRules, memory];
+            %input = agentRules;
             % 2. Generate response from LLM
             disp('Agent thinking...');
 
@@ -121,8 +127,10 @@ function buildyourownagent()
                         args = r.output(idx).arguments;
                         fprintf('Executing: %s with args %s\n', r.output(idx).name, args);
                         result = toolFcn(jsondecode(args));
-                        memory = [memory struct("role", "assistant", "content", struct("tool_name", r.output(idx).name, "args", r.output(idx).arguments))];
-                        memory = [memory struct("role", "user", "content", result)];
+                        memory = [memory {struct("role", "assistant", "content", "tool_name " + r.output(idx).name + " " + string(r.output(idx).arguments))}]; %#ok
+                        if ~isempty(result)
+                            memory = [memory {struct("role", "user", "content", result)}]; %#ok
+                        end
                         if strfind(r.output(idx).name, "terminate")
                             finished = true;
                         end
