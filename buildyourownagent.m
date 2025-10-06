@@ -2,45 +2,26 @@ function buildyourownagent()
 % Initialize the agent's environment and settings
     runAgent()
 
-
-    function codeBlock = extractMarkdownBlock(response, blockType)
-        if nargin < 2
-            blockType = "json";
-        end
-
-        if ~contains(response, '```')
-            codeBlock = response;
-            return;
-        end
-
-        parts = strsplit(response, '```');
-        codeBlock = strtrim(parts{2});
-
-        if startsWith(codeBlock, blockType)
-            codeBlock = strtrim(extractAfter(codeBlock, blockType));
-        end
-    end
-
-
     % List files in the specified directory
     function fileList = listSrFiles(args)
         fileList = dir(args.folder);
         fileList = {fileList(~[fileList.isdir]).name};
     end
 
-% Create a new empty file
-    function createFile(args)
+    % Create a new empty file
+    function result = createFile(args)
         fileID = fopen(args.file_name, 'w');
         fclose(fileID);
+        result = "created " + args.file_name;
     end
 
     % Read a file contents
     function content = readFile(args)
-        if ~isfield(args.folder) < 2
+        if ~isfield(args, "folder")
             args.folder = '.';
         end
 
-        fullPath = fullfile(args.folder, args.fileName);
+        fullPath = fullfile(args.folder, args.file_name);
 
         try
             fileID = fopen(fullPath, 'r');
@@ -48,7 +29,7 @@ function buildyourownagent()
             fclose(fileID);
         catch e
             if contains(e.message, 'No such file or directory')
-                content = ['Error: ', args.fileName, ' not found.'];
+                content = ['Error: ', args.file_name, ' not found.'];
             else
                 content = ['Error: ', e.message];
             end
@@ -56,10 +37,11 @@ function buildyourownagent()
     end
 
 % Write results to a file
-    function writeResults(args)
-        fileID = fopen(args.fileName, 'a');
+    function result = writeResults(args)
+        fileID = fopen(args.file_name, 'a');
         fprintf(fileID, '%s\n', args.results);
         fclose(fileID);
+        result = "wrote message to " + args.file_name;
     end
 
     % Terminate the agent loop
@@ -94,9 +76,9 @@ function buildyourownagent()
              'for each file, suggest a list of 2-3 tags to categorize the request, an assessment of where it is in the workflow,\n', ...
              'and an issue type.  Then append the list of tags to out.txt in the form of <srfilebane> : <deploment step> : <issue type> : <tag1>, <tag2>...\n', ...
              'where deployment step represents the step in the deployment process the customer experienced the issue.\n', ...
-             'the valid deployment steps are in the file buildyourownagent/agentdata/deploymentsteps.txt\n', ...
+             'the valid deployment steps are in the file deploymentsteps.txt in the agentdata folder\n', ...
              'Valid issue types are: request, howto, inquiry, issue.\n', ...
-             'The valid tags are in tags.txt in the buildyourownagent/agentdata folder\n\n', ...
+             'The valid tags are in tags.txt in the agentdata folder\n\n', ...
              'When you are done, terminate the conversation by using the "terminate" tool and I will provide the results to the user.'])};
 
 
@@ -115,8 +97,8 @@ function buildyourownagent()
         % The Agent Loop
         while iterations < maxIterations
             % 1. Construct prompt: Combine agent rules with memory
-            disp(memory);
-%            input = [agentRules, memory];
+            disp(jsonencode(memory));
+            %input = [agentRules, memory];
             input = agentRules;
             % 2. Generate response from LLM
             disp('Agent thinking...');
@@ -131,21 +113,27 @@ function buildyourownagent()
             toolCall = any(arrayfun(@(a) strfind(a.type, "function_call"), r.output));
 
             if toolCall
-
+                finished = false;
                 for idx = 1:length(r.output)
                     % Simulate tool call
                     if strfind(r.output(idx).type, "function_call")
                         toolFcn = toolFunctions(r.output(idx).name); % Example
                         args = r.output(idx).arguments;
                         fprintf('Executing: %s with args %s\n', r.output(idx).name, args);
-                        toolFcn(jsondecode(args))
+                        result = toolFcn(jsondecode(args));
+                        memory = [memory struct("role", "assistant", "content", struct("tool_name", r.output(idx).name, "args", r.output(idx).arguments))];
+                        memory = [memory struct("role", "user", "content", result)];
+                        if strfind(r.output(idx).name, "terminate")
+                            finished = true;
+                        end
                     end
+                      
                 end
 
+                if finished
+                    break;
+                end
 
-                % 5. Update memory with response and results
-                memory = [memory, {struct('role', 'assistant', 'content', jsonencode(action))}, ...
-                    {struct('role', 'user', 'content', jsonencode(result))}];
             else
                 % Handle regular message response
                 result = 'Simulated message content';
