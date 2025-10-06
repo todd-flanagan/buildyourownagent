@@ -21,60 +21,26 @@ function buildyourownagent()
         end
     end
 
-    % Call LLM to get a response
-    function responseContent = generateResponse(messages)
-        % In MATLAB, we would need to use a HTTP request to call the OpenAI API
-        % This is a placeholder for the actual API call
-        url = 'https://api.openai.com/v1/chat/completions';
-        headers = {'Content-Type', 'application/json', 'Authorization', ['Bearer ', getSecret('OPENAI_API_KEY')]};
-
-        data = struct('model', 'openai/gpt-4o', ...
-            'messages', messages, ...
-            'max_tokens', 1024);
-
-        options = weboptions('HeaderFields', headers, 'MediaType', 'application/json');
-        response = webwrite(url, jsonencode(data), options);
-
-        % Parse the response
-        responseStruct = jsondecode(response);
-        responseContent = strtrim(responseStruct.choices(1).message.content);
-    end
-
-    % Parse the LLM response into a structured action dictionary
-    function actionStruct = parseAction(response)
-        try
-            response = extractMarkdownBlock(response, "action");
-            actionStruct = jsondecode(response);
-
-            if ~isfield(actionStruct, 'tool_name') || ~isfield(actionStruct, 'args')
-                actionStruct = struct('tool_name', 'error', ...
-                    'args', struct('message', 'You must respond with a JSON tool invocation.'));
-            end
-        catch
-            actionStruct = struct('tool_name', 'error', ...
-                'args', struct('message', 'Invalid JSON response. You must respond with a JSON tool invocation.'));
-        end
-    end
 
     % List files in the specified directory
-    function fileList = listSrFiles(folder)
-        fileList = dir(folder);
+    function fileList = listSrFiles(args)
+        fileList = dir(args.folder);
         fileList = {fileList(~[fileList.isdir]).name};
     end
 
 % Create a new empty file
-    function createFile(fileName)
-        fileID = fopen(fileName, 'w');
+    function createFile(args)
+        fileID = fopen(args.file_name, 'w');
         fclose(fileID);
     end
 
     % Read a file contents
-    function content = readFile(fileName, folder)
-        if nargin < 2
-            folder = '.';
+    function content = readFile(args)
+        if ~isfield(args.folder) < 2
+            args.folder = '.';
         end
 
-        fullPath = fullfile(folder, fileName);
+        fullPath = fullfile(args.folder, args.fileName);
 
         try
             fileID = fopen(fullPath, 'r');
@@ -82,7 +48,7 @@ function buildyourownagent()
             fclose(fileID);
         catch e
             if contains(e.message, 'No such file or directory')
-                content = ['Error: ', fileName, ' not found.'];
+                content = ['Error: ', args.fileName, ' not found.'];
             else
                 content = ['Error: ', e.message];
             end
@@ -90,15 +56,15 @@ function buildyourownagent()
     end
 
 % Write results to a file
-    function writeResults(fileName, results)
-        fileID = fopen(fileName, 'a');
-        fprintf(fileID, '%s\n', results);
+    function writeResults(args)
+        fileID = fopen(args.fileName, 'a');
+        fprintf(fileID, '%s\n', args.results);
         fclose(fileID);
     end
 
     % Terminate the agent loop
-    function terminateMsg = terminate(message)
-        terminateMsg = ['Termination message: ', message];
+    function terminateMsg = terminate(args)
+        terminateMsg = ['Termination message: ', args.message];
         disp(terminateMsg);
     end
 
@@ -113,39 +79,12 @@ function buildyourownagent()
         toolFunctions('terminate') = @terminate;
 
         % Define tools as a cell array of structs
-        tools = {
-            struct('type', 'function', ...
-            'name', 'list_sr_files', ...
-            'description', 'Returns a list of service request files.', ...
-            'parameters', struct('type', 'object', ...
-            'properties', struct('folder', struct('type', 'string'))), ...
-            'required', {'folder'}), ...
-            struct('type', 'function', ...
-            'name', 'read_file', ...
-            'description', 'Reads the content of a specified file in the directory.', ...
-            'parameters', struct('type', 'object', ...
-            'properties', struct('file_name', struct('type', 'string'), ...
-            'folder', struct('type', 'string'))), ...
-            'required', {'file_name'}), ...
-            struct('type', 'function', ...
-            'name', 'create_file', ...
-            'description', 'Creates a new file of the given name.', ...
-            'parameters', struct('type', 'object', ...
-            'properties', struct('file_name', struct('type', 'string'))), ...
-            'required', {'file_name'}), ...
-            struct('type', 'function', ...
-            'name', 'write_results', ...
-            'description', 'writes a string to a file', ...
-            'parameters', struct('type', 'object', ...
-            'properties', struct('file_name', struct('type', 'string'))), ...
-            'required', {'file_name'}), ...
-            struct('type', 'function', ...
-            'name', 'terminate', ...
-            'description', 'Terminates the conversation. No further actions or interactions are possible after this. Prints the provided message for the user.', ...
-            'parameters', struct('type', 'object', ...
-            'properties', struct('message', struct('type', 'string'))), ...
-            'required', {'message'})
-            };
+        tools(1) = Tool("list_sr_files", "Returns a list of service request files.", "object", struct('folder', struct('type', 'string')), "folder");
+        tools(2) = Tool("read_file", "Reads the content of a specified file in the directory.", "object", struct('file_name', struct('type', 'string'), 'folder', struct('type', 'string')), "file_name");
+        tools(3) = Tool("create_file", "Creates a new file of the given name.", "object", struct('file_name', struct('type', 'string')), "file_name");
+        tools(4) = Tool("write_results", "writes a string to a file", "object", {struct('file_name', struct('type', 'string'), 'message', struct('type', 'string'))}, "file_name, message");
+        tools(5) = Tool("terminate", "Terminates the conversation. No further actions or interactions are possible after this. Prints the provided message for the user.", "object", struct('message', struct('type', 'string')), "message");
+
 
         %Define system instructions (Agent Rules)
         agentRules = {struct('role', 'system', ...
@@ -161,9 +100,7 @@ function buildyourownagent()
              'When you are done, terminate the conversation by using the "terminate" tool and I will provide the results to the user.'])};
 
 
-        % agentRules = {struct('role', 'system', ...
-        %      'content', 'say hello')};
- 
+
         % Initialize agent parameters
 
         iterations = 0;
@@ -172,6 +109,8 @@ function buildyourownagent()
         userTask = 'process the srs';
 
         memory = {struct('role', 'user', 'content', userTask)};
+
+        o = OpenAIAPI(memory, tools);
 
         % The Agent Loop
         while iterations < maxIterations
@@ -182,68 +121,27 @@ function buildyourownagent()
             % 2. Generate response from LLM
             disp('Agent thinking...');
 
-            % In a real implementation, we would call the OpenAI API here
-            % For this example, we'll simulate the API call
-            url = 'https://api.openai.com/v1/responses';
-            o = weboptions;
-            o.HeaderFields = ["Authorization", "Bearer " + getSecret('OPENAI_API_KEY')];
-            o.ContentType = 'text';
-            o.MediaType = 'application/json';
-            data.model = 'gpt-4o';
-            data.input = input;
-            data.tools = tools;
-            data.max_output_tokens = 1024;
-
-            % This is a placeholder for the actual API call
-            d = jsonencode(data);
-            response = webwrite(url, d, o);
-            responseStruct = extractMarkdownBlock(response);
+            r = o.generateResponse(input);
 
             % Simulate a response for this example
-            disp('Agent response: ' + responseStruct);
+            disp("Agent response: " + string(r.status))
 
             % Simulate tool calls
             % In a real implementation, we would parse the actual response
-            hasTool = true; % Simulated
+            toolCall = any(arrayfun(@(a) strfind(a.type, "function_call"), r.output));
 
-            if hasTool
-                % Simulate tool call
-                toolName = 'list_sr_files'; % Example
-                toolArgs = struct('folder', 'buildyourownagent/srs'); % Example
-                action = struct('tool_name', toolName, 'args', toolArgs);
+            if toolCall
 
-                if strcmp(toolName, 'terminate')
-                    disp(terminate(action.args.message));
-                    break;
-                elseif isKey(toolFunctions, toolName)
-                    try
-                        % Call the function dynamically
-                        if strcmp(toolName, 'list_sr_files')
-                            %result = struct('result', {toolFunctions(toolName)(toolArgs.folder)});
-                        elseif strcmp(toolName, 'read_file')
-                            if isfield(toolArgs, 'folder')
-                                %result = struct('result', toolFunctions(toolName)(toolArgs.file_name, toolArgs.folder));
-                            else
-                                %result = struct('result', toolFunctions(toolName)(toolArgs.file_name));
-                            end
-                        elseif strcmp(toolName, 'create_file')
-                            %toolFunctions(toolName)(toolArgs.file_name);
-                            result = struct('result', 'File created');
-                        elseif strcmp(toolName, 'write_results')
-                            %toolFunctions(toolName)(toolArgs.file_name, toolArgs.results);
-                            result = struct('result', 'Results written');
-                        else
-                            %result = struct('result', toolFunctions(toolName)(toolArgs.message));
-                        end
-                    catch e
-                        result = struct('error', ['Error executing ', toolName, ': ', e.message]);
+                for idx = 1:length(r.output)
+                    % Simulate tool call
+                    if strfind(r.output(idx).type, "function_call")
+                        toolFcn = toolFunctions(r.output(idx).name); % Example
+                        args = r.output(idx).arguments;
+                        fprintf('Executing: %s with args %s\n', r.output(idx).name, args);
+                        toolFcn(jsondecode(args))
                     end
-                else
-                    result = struct('error', ['Unknown tool: ', toolName]);
                 end
 
-                fprintf('Executing: %s with args %s\n', toolName, jsonencode(toolArgs));
-                disp(['Action result: ', jsonencode(result)]);
 
                 % 5. Update memory with response and results
                 memory = [memory, {struct('role', 'assistant', 'content', jsonencode(action))}, ...
@@ -253,7 +151,7 @@ function buildyourownagent()
                 result = 'Simulated message content';
                 disp(['Action result: ', result]);
             end
-
+            
             iterations = iterations + 1;
         end
     end
