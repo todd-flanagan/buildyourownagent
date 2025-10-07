@@ -45,7 +45,7 @@ function buildyourownagent()
 % Write results to a file
     function result = writeResults(args)
         fileID = fopen(args.file_name, 'a');
-        fprintf(fileID, '%s\n', args.results);
+        fprintf(fileID, '%s\n', args.message);
         fclose(fileID);
         result = args.file_name;
     end
@@ -116,13 +116,16 @@ function buildyourownagent()
 
             % Simulate tool calls
             % In a real implementation, we would parse the actual response
-            toolCall = any(arrayfun(@(a) strfind(a.type, "function_call"), r.output));
+            if iscell(r.output)
+                toolCall = any(cellfun(@(a) isfield(a, "type") && ~isempty(strfind(a.type, "function_call")), r.output));
+            else
+                toolCall = any(arrayfun(@(a) isfield(a, "type") && strfind(a.type, "function_call"), r.output));
+            end
 
             if toolCall
                 finished = false;
                 for idx = 1:length(r.output)
-                    % Simulate tool call
-                    if strfind(r.output(idx).type, "function_call")
+                    if isfield(r.output(idx), "type") && ~isempty(strfind(r.output(idx).type, "function_call"))
                         toolFcn = toolFunctions(r.output(idx).name); % Example
                         args = r.output(idx).arguments;
                         fprintf('Executing: %s with args %s\n', r.output(idx).name, args);
