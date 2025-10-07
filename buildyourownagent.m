@@ -67,11 +67,11 @@ function buildyourownagent()
         toolFunctions('terminate') = @terminate;
 
         % Define tools as a cell array of structs
-        tools(1) = Tool("list_sr_files", "Returns a list of service request files.", "object", struct('folder', struct('type', 'string')), "folder");
-        tools(2) = Tool("read_file", "Reads the content of a specified file in the directory.", "object", struct('file_name', struct('type', 'string'), 'folder', struct('type', 'string')), "file_name");
-        tools(3) = Tool("create_file", "Creates a new file of the given name.", "object", struct('file_name', struct('type', 'string')), "file_name");
-        tools(4) = Tool("write_results", "writes a string to a file", "object", {struct('file_name', struct('type', 'string'), 'message', struct('type', 'string'))}, "file_name, message");
-        tools(5) = Tool("terminate", "Terminates the conversation. No further actions or interactions are possible after this. Prints the provided message for the user.", "object", struct('message', struct('type', 'string')), "message");
+        tools(1) = openaiapi.Tool("list_sr_files", "Returns a list of service request files.", "object", struct('folder', struct('type', 'string')), "folder");
+        tools(2) = openaiapi.Tool("read_file", "Reads the content of a specified file in the directory.", "object", struct('file_name', struct('type', 'string'), 'folder', struct('type', 'string')), "file_name");
+        tools(3) = openaiapi.Tool("create_file", "Creates a new file of the given name.", "object", struct('file_name', struct('type', 'string')), "file_name");
+        tools(4) = openaiapi.Tool("write_results", "writes a string to a file", "object", {struct('file_name', struct('type', 'string'), 'message', struct('type', 'string'))}, "file_name, message");
+        tools(5) = openaiapi.Tool("terminate", "Terminates the conversation. No further actions or interactions are possible after this. Prints the provided message for the user.", "object", struct('message', struct('type', 'string')), "message");
 
 
         %Define system instructions (Agent Rules)
@@ -98,9 +98,10 @@ function buildyourownagent()
 
         memory = {struct('role', 'user', 'content', userTask)};
 
-        o = OpenAIAPI(memory, tools);
+        o = openaiapi.OpenAIAPI(memory, tools);
 
         % The Agent Loop
+        finished = false;
         while iterations < maxIterations
             % 1. Construct prompt: Combine agent rules with memory
             disp(jsonencode(memory));
@@ -112,43 +113,31 @@ function buildyourownagent()
             r = o.generateResponse(input);
 
             % Simulate a response for this example
-            disp("Agent response: " + string(r.status))
+            disp("Agent response: " + string(r.Status))
 
-            % Simulate tool calls
-            % In a real implementation, we would parse the actual response
-            if iscell(r.output)
-                toolCall = any(cellfun(@(a) isfield(a, "type") && ~isempty(strfind(a.type, "function_call")), r.output));
-            else
-                toolCall = any(arrayfun(@(a) isfield(a, "type") && strfind(a.type, "function_call"), r.output));
+            for idx = 1:length(r.FunctionCalls)
+                toolFcn = toolFunctions(r.FunctionCalls(idx).Name); 
+                if isempty(toolFcn)
+                    disp("no function for " + r.FunctionCalls(idx).Name)
+                    continue;
+                end
+                fprintf('Executing: %s with args %s\n', r.FunctionCalls(idx).Name, r.FunctionCalls(idx).Arguments);
+                result = toolFcn(jsondecode(r.FunctionCalls(idx).Arguments));
+                memory = [memory {struct("role", "assistant", "content", "tool_name " + r.FunctionCalls(idx).Name + " " + string(r.FunctionCalls(idx).Arguments))}]; %#ok
+                if ~isempty(result)
+                    memory = [memory {struct("role", "user", "content", result)}]; %#ok
+                end
+                if strfind(r.FunctionCalls(idx).Name, "terminate")
+                    finished = true;
+                end
+
             end
-
-            if toolCall
-                finished = false;
-                for idx = 1:length(r.output)
-                    if isfield(r.output(idx), "type") && ~isempty(strfind(r.output(idx).type, "function_call"))
-                        toolFcn = toolFunctions(r.output(idx).name); % Example
-                        args = r.output(idx).arguments;
-                        fprintf('Executing: %s with args %s\n', r.output(idx).name, args);
-                        result = toolFcn(jsondecode(args));
-                        memory = [memory {struct("role", "assistant", "content", "tool_name " + r.output(idx).name + " " + string(r.output(idx).arguments))}]; %#ok
-                        if ~isempty(result)
-                            memory = [memory {struct("role", "user", "content", result)}]; %#ok
-                        end
-                        if strfind(r.output(idx).name, "terminate")
-                            finished = true;
-                        end
-                    end
-                      
-                end
-
-                if finished
-                    break;
-                end
-
-            else
-                % Handle regular message response
-                result = 'Simulated message content';
-                disp(['Action result: ', result]);
+            for idx = 1:length(r.Messages)
+                disp(r.Messages(idx).Content)
+                memory = [memory {struct("role", "user", "content", r.Messages(idx).Content)}]; %#ok
+            end
+            if finished
+                break;
             end
             
             iterations = iterations + 1;
