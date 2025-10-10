@@ -67,11 +67,11 @@ function buildyourownagent()
         toolFunctions('terminate') = @terminate;
 
         % Define tools as a cell array of structs
-        tools(1) = openaiapi.Tool("list_sr_files", "Returns a list of service request files.", "object", struct('folder', struct('type', 'string')), "folder");
-        tools(2) = openaiapi.Tool("read_file", "Reads the content of a specified file in the directory.", "object", struct('file_name', struct('type', 'string'), 'folder', struct('type', 'string')), "file_name");
-        tools(3) = openaiapi.Tool("create_file", "Creates a new file of the given name.", "object", struct('file_name', struct('type', 'string')), "file_name");
-        tools(4) = openaiapi.Tool("write_results", "writes a string to a file", "object", {struct('file_name', struct('type', 'string'), 'message', struct('type', 'string'))}, "file_name, message");
-        tools(5) = openaiapi.Tool("terminate", "Terminates the conversation. No further actions or interactions are possible after this. Prints the provided message for the user.", "object", struct('message', struct('type', 'string')), "message");
+        tools(1) = openaiapi.Tool("list_sr_files", "Returns a list of service request files.", @listSrFiles, "object", struct('folder', struct('type', 'string')), "folder");
+        tools(2) = openaiapi.Tool("read_file", "Reads the content of a specified file in the directory.", @readFile, "object", struct('file_name', struct('type', 'string'), 'folder', struct('type', 'string')), "file_name");
+        tools(3) = openaiapi.Tool("create_file", "Creates a new file of the given name.", @createFile, "object", struct('file_name', struct('type', 'string')), "file_name");
+        tools(4) = openaiapi.Tool("write_results", "writes a string to a file", @writeResults, "object", {struct('file_name', struct('type', 'string'), 'message', struct('type', 'string'))}, "file_name, message");
+        tools(5) = openaiapi.Tool("terminate", "Terminates the conversation. No further actions or interactions are possible after this. Prints the provided message for the user.", @terminate, "object", struct('message', struct('type', 'string')), "message");
 
 
         %Define system instructions (Agent Rules)
