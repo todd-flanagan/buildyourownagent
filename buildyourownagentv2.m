@@ -1,4 +1,5 @@
-function buildyourownagentv2
+function buildyourownagentv2(varargin)
+
     % Define tools as a cell array of structs
     tools{1} = openaiapi.Tool("list_sr_files", "Returns a list of service request files.", @listSrFiles, "function files = list_sr_files(folder)");
     tools{2} = openaiapi.Tool("read_file", "Reads the content of a specified file in the directory.", @readFile, "function contents = read_file(file_name, folder)");
@@ -19,9 +20,16 @@ function buildyourownagentv2
          'The valid tags are in tags.txt in the agentdata folder. ', ...
          'When you are done, terminate the conversation by using the "terminate" tool and I will provide the results to the user.'];
 
+    if(~isempty(varargin))
+        prompt = varargin{1};
+    end
 
     a = openaiapi.Agent(prompt, "process srs", tools, "Iterations", 10);
-    a.runAgent();
+    results = a.runAgent();
+
+    if(length(varargin) > 1)
+        varargin{2}.Value = cellfun(@(x)(string(x.role) + " : " + string(x.content)), results);
+    end
 
     % List files in the specified directory
     function fileList = listSrFiles(args)

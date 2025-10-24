@@ -15,6 +15,11 @@
 *.mlappinstall
 *.mltbx
 
+StandaloneDesktopApp1/
+StandaloneDesktopApp2/
+release/
+WebAppArchive1/
+
 # Deployable archives
 *.ctf
 
